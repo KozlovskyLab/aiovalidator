@@ -19,6 +19,7 @@ help:
 	@echo "  run            to run service"
 	@echo "  test           to run tests"
 	@echo "  coverage       to get a report of the test coverage"
+	@echo "  typecheck      to run static type checker"
 	@echo "  stylecheck     to check code style"
 	@echo "  doc            to update the documentation"
 	@echo "  update         to update the dependencies"
@@ -28,11 +29,14 @@ run:
 	python3.6 -m aiovalidator
 
 test:
-	/usr/local/bin/python3.6 -m pytest -v tests
+	python3.6 -m pytest -v tests
 
 coverage:
 	@(coverage run --source=storage --module py.test $(TEST_OPTIONS) $(TESTS))
 	@(coverage report)
+
+typecheck:
+	python3.6 -m mypy -m aiovalidator
 
 stylecheck:
 	flake8 --ignore E501
