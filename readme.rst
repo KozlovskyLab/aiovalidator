@@ -3,8 +3,8 @@ Async validator
 ===============
 
 :Author: Vladimir Kozlovski <vladimir@kozlovskilab.com>
-:Issues: https://github.com/aiovalidator/jsonrpc/issues
-:Wiki: https://github.com/aiovalidator/jsonrpc/wiki
+:Issues: https://github.com/kozlovskilab/aiovalidator/issues
+:Wiki: https://github.com/kozlovskilab/aiovalidator/wiki
 
 
 -----------------
