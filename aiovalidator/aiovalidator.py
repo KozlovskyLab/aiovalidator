@@ -20,11 +20,13 @@ __all__ = ['Validator', 'ValidationError']
 
 class ValidationError(ValueError):
     """
-    Raised when the target dictionary is missing or has the wrong format.
+    Parameters
+    ----------
+    ...
     """
-    def __init__(self, msg: str, issues={}):
-        self._msg = msg
-        # self._issues = issues
+    def __init__(self, msg: str, issues=None):
+        self.msg = msg
+        self.issues = issues
         super().__init__(msg)
 
     # def __str__(self):
@@ -42,6 +44,9 @@ class Validator:
     ERROR_UNKNOWN_FIELD = "unknown field"
     ERROR_REQUIRED_FIELD = "required field"
 
+    ERROR_DICT_SCHEMA = "dict contains some errors"
+    ERROR_LIST_SCHEMA = "list contains some errors"
+
     ERROR_STR_MIN_LENGTH = "minimum length of the string is '{0}' characters"
     ERROR_STR_MAX_LENGTH = "maximum length of the string is '{0}' characters"
     ERROR_STR_REGEX = "value does not match regex '{0}'"
@@ -58,6 +63,7 @@ class Validator:
 
     def __init__(self):
         pass
+
 
     async def validate(self, value, *, type: str, required: bool = True, strict_mode: bool = True, **kwargs):
         """
@@ -87,6 +93,7 @@ class Validator:
 
         return value
 
+
     async def validate_dict(self, value, *, schema: dict = None, default: dict = None, nullable: bool = False,
                             allow_unknown: bool = False, strict_mode: bool = True):
         """
@@ -112,11 +119,7 @@ class Validator:
         -------
         dict
         """
-        errors = {}
-
-        # default
-        # if value is None and default is not None:
-        #     value = default
+        issues = {}
 
         # nullable
         if value is None and nullable is False:
@@ -137,30 +140,29 @@ class Validator:
                 except KeyError:
                     is_required = validator_params['required'] if 'required' in validator_params else True
                     if is_required is True:
-                        errors[key] = ValidationError(self.ERROR_REQUIRED_FIELD)
+                        issues[key] = self.ERROR_REQUIRED_FIELD
                     else:
                         # Returns default values
                         if 'default' in validator_params:
                             value[key] = validator_params['default']
-                        else:
-                            value[key] = None
                 else:
                     try:
                         value[key] = await self.validate(_value, **validator_params, strict_mode=strict_mode)
                     except ValidationError as e:
-                        errors[key] = e
+                        issues[key] = e.msg if e.issues is None else e.issues
 
             # allow_unknown
             if allow_unknown is False:
                 for key, _value in value.items():
                     if key not in schema.keys():
-                        errors[key] = ValidationError(self.ERROR_UNKNOWN_FIELD)
+                        issues[key] = self.ERROR_UNKNOWN_FIELD
                         # del value[key]
 
-        if len(errors.keys()):
-            raise ValidationError(errors)
+        if len(issues.keys()):
+            raise ValidationError(self.ERROR_DICT_SCHEMA, issues=issues)
 
         return value
+
 
     async def validate_list(self, value, *, schema: dict = None, default: str = None, nullable: bool = False,
                             minlength: int = None, maxlength: int = None, allowed: list = None,
@@ -190,7 +192,7 @@ class Validator:
         -------
 
         """
-        errors = {}
+        issues = {}
 
         # nullable
         if value is None and nullable is False:
@@ -200,7 +202,7 @@ class Validator:
             return value
 
         # type
-        if not isinstance(value, Sequence):
+        if not isinstance(value, Sequence) or isinstance(value, str):
             raise ValidationError(self.ERROR_BAD_TYPE.format("list"))
 
         # minlength
@@ -225,17 +227,17 @@ class Validator:
                 try:
                     value[i] = await self.validate(value[i], **schema, strict_mode=strict_mode)
                 except ValidationError as e:
-                    errors[i] = e
+                    issues[i] = e.msg if e.issues is None else e.issues
 
-        if len(errors.keys()):
-            raise ValidationError(errors)
+        if len(issues.keys()):
+            raise ValidationError(self.ERROR_LIST_SCHEMA, issues=issues)
 
         return value
 
 
     def validate_string(self, value, *, default: str = None, nullable: bool = False, minlength: int = None,
                         maxlength: int = None, empty: bool = False, allowed: list = None, regex: str = None,
-                        strict_mode: bool = True):
+                        strict_mode: bool = True) -> str:
         """
         `validate_string` validates a string.
 
@@ -311,8 +313,9 @@ class Validator:
 
         return value
 
+
     def validate_integer(self, value, *, default: int = None, nullable: bool = False, min: int = None, max: int = None,
-                         allowed: list = None, strict_mode: bool = True):
+                         allowed: list = None, strict_mode: bool = True) -> int:
         """
 
         Parameters
@@ -350,9 +353,17 @@ class Validator:
 
             # try to convert
             try:
-                value = int(value)  # TODO: logging warning?
+                int_value = int(value)  # TODO: logging warning?
+            except ValueError as e:
+                raise ValidationError(self.ERROR_BAD_TYPE.format("integer"))
             except TypeError as e:
                 raise ValidationError(self.ERROR_BAD_TYPE.format("integer"))
+
+            if isinstance(value, float):
+                if int_value != value:
+                    raise ValidationError(self.ERROR_BAD_TYPE.format("integer"))
+
+            value = int_value
 
         if isinstance(value, bool):
             if strict_mode:
@@ -377,21 +388,22 @@ class Validator:
 
         return value
 
-    def validate_float(self, value, *, default: float = None, nullable: bool = False, min: int = None, max: int = None,
-                       allowed: list = None, strict_mode: bool = True):
+
+    def validate_float(self, value, *, default: float = None, nullable: bool = False, min: float = None,
+                       max: float = None, allowed: list = None, strict_mode: bool = True) -> float:
         """
 
         Parameters
         ----------
         value : any
             Value, to be validated.
-        default : int or None, optional
+        default : float or None, optional
             ...
         nullable : bool, optional
             ...
-        min : int or None, optional
+        min : float or None, optional
             ...
-        max : int or None, optional
+        max : float or None, optional
             ...
         allowed : list or None, optional
             ...
@@ -400,7 +412,7 @@ class Validator:
 
         Returns
         -------
-        int
+        float
         """
         # nullable
         if value is None and nullable is False:
@@ -410,11 +422,15 @@ class Validator:
             return value
 
         # type
-        if not isinstance(value, (float, int)):
+        if not isinstance(value, float):
             if strict_mode:
-                raise ValidationError(self.ERROR_BAD_TYPE.format("float"))
+                if not isinstance(value, int) or isinstance(value, bool):
+                    raise ValidationError(self.ERROR_BAD_TYPE.format("float"))
 
             # try to convert
+            if not isinstance(value, (int, str)):
+                raise ValidationError(self.ERROR_BAD_TYPE.format("float"))
+
             try:
                 value = float(value)
             except ValueError as e:
@@ -438,8 +454,75 @@ class Validator:
         return value
 
 
+    def validate_number(self, value, *, default: float = None, nullable: bool = False, min: float = None,
+                        max: float = None, allowed: list = None, strict_mode: bool = True) -> float:
+        """
+
+        Parameters
+        ----------
+        value : any
+            Value, to be validated.
+        default : float, int or None, optional
+            ...
+        nullable : bool, optional
+            ...
+        min : float, int or None, optional
+            ...
+        max : float, int or None, optional
+            ...
+        allowed : list or None, optional
+            ...
+        strict_mode : bool, optional
+            ...
+
+        Returns
+        -------
+        float
+        """
+        # nullable
+        if value is None and nullable is False:
+            raise ValidationError(self.ERROR_NOT_NULLABLE)
+
+        if value is None:
+            return value
+
+        # type
+        if not isinstance(value, (float, int)):
+            if strict_mode:
+                raise ValidationError(self.ERROR_BAD_TYPE.format("int or float"))
+
+            # try to convert
+            if not isinstance(value, str):
+                raise ValidationError(self.ERROR_BAD_TYPE.format("int or float"))
+
+            try:
+                value = float(value)
+            except ValueError as e:
+                raise ValidationError(self.ERROR_BAD_TYPE.format("int or float"))
+
+        if isinstance(value, bool) and strict_mode:
+            raise ValidationError(self.ERROR_BAD_TYPE.format("int or float"))
+
+        # min
+        if min is not None:
+            if value < min:
+                raise ValidationError(self.ERROR_MIN_VALUE.format(min))
+
+        # max
+        if max is not None:
+            if value > max:
+                raise ValidationError(self.ERROR_MAX_VALUE.format(max))
+
+        # allowed
+        if allowed is not None:
+            if value not in allowed:
+                raise ValidationError(self.ERROR_UNALLOWED_VALUE.format(value))
+
+        return value
+
+
     def validate_boolean(self, value, *, default: float = None, nullable: bool = False, allowed: list = None,
-                         strict_mode: bool = True):
+                         strict_mode: bool = True) -> bool:
         """
 
         Parameters
@@ -476,9 +559,15 @@ class Validator:
                 raise ValidationError(self.ERROR_BAD_TYPE.format("boolean"))
 
             # try to convert
-            try:
-                value = bool(value)
-            except ValueError as e:
+            if not isinstance(value, str):
+                raise ValidationError(self.ERROR_BAD_TYPE.format("boolean"))
+
+            # TODO: Move string values to params?
+            if value.lower() == 'true':
+                value = True
+            elif value.lower() == 'false':
+                value = False
+            else:
                 raise ValidationError(self.ERROR_BAD_TYPE.format("boolean"))
 
         # allowed
@@ -509,7 +598,7 @@ class Validator:
 
 
     async def validate_objectid(self, value, *, default: str = None, nullable: bool = False, data_relation: dict,
-                                strict_mode: bool = True):
+                                strict_mode: bool = True) -> str:
         """
 
         Parameters
@@ -527,7 +616,7 @@ class Validator:
 
         Returns
         -------
-
+        str
         """
         # nullable
         if value is None and nullable is False:

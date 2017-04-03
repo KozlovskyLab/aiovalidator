@@ -14,7 +14,7 @@ Project structure
 docs
     Project documentation.
 
-validator
+aiovalidator
     The source code of the project.
 
 tests

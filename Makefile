@@ -32,7 +32,7 @@ test:
 	python3.6 -m pytest -v tests
 
 coverage:
-	@(coverage run --source=storage --module py.test $(TEST_OPTIONS) $(TESTS))
+	@(coverage run --source=aiovalidator --module py.test $(TEST_OPTIONS) $(TESTS))
 	@(coverage report)
 
 typecheck:
