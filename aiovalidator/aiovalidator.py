@@ -629,7 +629,7 @@ class Validator:
         if not isinstance(value, str):
             raise ValidationError(self.ERROR_BAD_TYPE.format('objectid'))
 
-        if len(value) != 36:
-            raise ValidationError(self.ERROR_BAD_TYPE.format('objectid'))
+        # if len(value) != 36:
+        #     raise ValidationError(self.ERROR_BAD_TYPE.format('objectid'))
 
         return value
