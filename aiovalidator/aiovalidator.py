@@ -64,7 +64,6 @@ class Validator:
     def __init__(self):
         pass
 
-
     async def validate(self, value, *, type: str, required: bool = True, strict_mode: bool = True, **kwargs):
         """
 
@@ -92,7 +91,6 @@ class Validator:
             value = validate_func(value, **kwargs, strict_mode=strict_mode)
 
         return value
-
 
     async def validate_dict(self, value, *, schema: dict = None, default: dict = None, nullable: bool = False,
                             allow_unknown: bool = False, strict_mode: bool = True):
@@ -163,10 +161,9 @@ class Validator:
 
         return value
 
-
     async def validate_list(self, value, *, schema: dict = None, default: str = None, nullable: bool = False,
                             minlength: int = None, maxlength: int = None, allowed: list = None,
-                            strict_mode: bool = True):
+                            unique_indexes: list = None, strict_mode: bool = True):
         """
 
         Parameters
@@ -184,6 +181,8 @@ class Validator:
         maxlength: int, optional
             ...
         allowed : list, optional
+            ...
+        unique_indexes : list, optional
             ...
         strict_mode : bool, optional
             Enables strict type checking.
@@ -233,7 +232,6 @@ class Validator:
             raise ValidationError(self.ERROR_LIST_SCHEMA, issues=issues)
 
         return value
-
 
     def validate_string(self, value, *, default: str = None, nullable: bool = False, minlength: int = None,
                         maxlength: int = None, empty: bool = False, allowed: list = None, regex: str = None,
@@ -313,7 +311,6 @@ class Validator:
 
         return value
 
-
     def validate_integer(self, value, *, default: int = None, nullable: bool = False, min: int = None, max: int = None,
                          allowed: list = None, strict_mode: bool = True) -> int:
         """
@@ -388,7 +385,6 @@ class Validator:
 
         return value
 
-
     def validate_float(self, value, *, default: float = None, nullable: bool = False, min: float = None,
                        max: float = None, allowed: list = None, strict_mode: bool = True) -> float:
         """
@@ -452,7 +448,6 @@ class Validator:
                 raise ValidationError(self.ERROR_UNALLOWED_VALUE.format(value))
 
         return value
-
 
     def validate_number(self, value, *, default: float = None, nullable: bool = False, min: float = None,
                         max: float = None, allowed: list = None, strict_mode: bool = True) -> float:
@@ -520,7 +515,6 @@ class Validator:
 
         return value
 
-
     def validate_boolean(self, value, *, default: float = None, nullable: bool = False, allowed: list = None,
                          strict_mode: bool = True) -> bool:
         """
@@ -577,7 +571,6 @@ class Validator:
 
         return value
 
-
     async def validate_file(self, value, strict_mode: bool = True):
         """
 
@@ -595,7 +588,6 @@ class Validator:
         print(value)
 
         return value
-
 
     async def validate_objectid(self, value, *, default: str = None, nullable: bool = False, data_relation: dict,
                                 strict_mode: bool = True) -> str:
