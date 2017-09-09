@@ -12,6 +12,7 @@
     - `Vladimir Kozlovski <vladimir@kozlovskilab.com>`_
 """
 from collections import Mapping, Sequence
+from datetime import datetime
 from asyncio import iscoroutinefunction
 import re
 
@@ -571,6 +572,50 @@ class Validator:
 
         return value
 
+    def validate_datetime(self, value, *, format: str, default: str = None, nullable: bool = False,
+                                strict_mode: bool = True):
+        """
+
+        Parameters
+        ----------
+        value : any
+            Value, to be validated.
+        format : str
+            ...
+        default : str or None, optional
+            ...
+        nullable : bool, optional
+            ...
+        strict_mode : bool, optional
+            Enables srtict type checking.
+
+        Returns
+        -------
+        datetime
+        """
+        # nullable
+        if value is None and nullable is False:
+            raise ValidationError(self.ERROR_NOT_NULLABLE)
+
+        if value is None:
+            return value
+
+        # type
+        if not isinstance(value, datetime):
+            if strict_mode:
+                raise ValidationError(self.ERROR_BAD_TYPE.format("datetime"))
+
+            # try to convert
+            if not isinstance(value, str):
+                raise ValidationError(self.ERROR_BAD_TYPE.format("datetime"))
+
+            try:
+                value = datetime.strptime(value, format)
+            except ValueError:
+                raise ValidationError(self.ERROR_BAD_TYPE.format('datetime'))
+
+        return value
+
     async def validate_file(self, value, strict_mode: bool = True):
         """
 
@@ -585,8 +630,6 @@ class Validator:
         -------
 
         """
-        print(value)
-
         return value
 
     async def validate_objectid(self, value, *, default: str = None, nullable: bool = False, data_relation: dict,
