@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of the `aiovalidator` package.
-# (c) 2016-2017 Kozlovski Lab <welcome@kozlovskilab.com>
+# (c) 2016-2018 alldbx <welcome@alldbx.com>
 #
 # For the full copyright and license information, please view the LICENSE
 # file that was distributed with this source code.
 #
 """
 :Authors:
-    - `Vladimir Kozlovski <vladimir@kozlovskilab.com>`_
+    - `Vladimir Kozlovsky <vladimir@alldbx.com>`_
 """
 from collections import Mapping, Sequence
 from datetime import datetime
@@ -45,8 +45,8 @@ class Validator:
     ERROR_UNKNOWN_FIELD = "unknown field"
     ERROR_REQUIRED_FIELD = "required field"
 
-    ERROR_DICT_SCHEMA = "dict contains some errors"
-    ERROR_LIST_SCHEMA = "list contains some errors"
+    ERROR_OBJECT_PROPERTIES = "object contains some errors"
+    ERROR_ARRAY_ITEMS = "array contains some errors"
 
     ERROR_STR_MIN_LENGTH = "minimum length of the string is '{0}' characters"
     ERROR_STR_MAX_LENGTH = "maximum length of the string is '{0}' characters"
@@ -93,21 +93,19 @@ class Validator:
 
         return value
 
-    async def validate_dict(self, value, *, schema: dict = None, default: dict = None, nullable: bool = False,
-                            allow_unknown: bool = False, strict_mode: bool = True):
+    async def validate_object(self, value, *, properties: dict = None, default: dict = None, nullable: bool = False,
+                              allow_unknown: bool = False, strict_mode: bool = True):
         """
 
         Parameters
         ----------
         value : any
             Value, to be validated.
-        schema : dict or None, optional
+        properties : dict, optional
             ...
-        default : dict or None, optional
+        default : dict, optional
             ...
         nullable : bool, optional
-            ...
-        schema : dict
             ...
         allow_unknown : bool, optional
             ...
@@ -129,51 +127,65 @@ class Validator:
 
         # type
         if not isinstance(value, Mapping):
-            raise ValidationError(self.ERROR_BAD_TYPE.format('dict'))
+            raise ValidationError(self.ERROR_BAD_TYPE.format('object'))
 
-        # schema
-        if schema is not None:
-            for key, validator_params in schema.items():
+        # properties
+        if properties is not None:
+            _properties = {}
+
+            #
+            for prop, validator_params in properties.items():
+                # If the properties key is a regular expression.
+                if prop.startswith('^') and prop.endswith('$'):
+                    for object_key in value.keys():
+                        # If the object key is not found in the object properties.
+                        if object_key not in properties.keys():
+                            # If the object key matches the regular expression of the object properties.
+                            if re.fullmatch(prop, object_key):
+                                _properties[object_key] = validator_params
+                else:
+                    _properties[prop] = validator_params
+
+            #
+            for prop, validator_params in _properties.items():
                 try:
-                    _value = value[key]
+                    _value = value[prop]
                 except KeyError:
                     is_required = validator_params['required'] if 'required' in validator_params else True
                     if is_required is True:
-                        issues[key] = self.ERROR_REQUIRED_FIELD
+                        issues[prop] = self.ERROR_REQUIRED_FIELD
                     else:
                         # Returns default values
                         if 'default' in validator_params:
-                            value[key] = validator_params['default']
+                            value[prop] = validator_params['default']
                 else:
                     try:
-                        value[key] = await self.validate(_value, **validator_params, strict_mode=strict_mode)
+                        value[prop] = await self.validate(_value, **validator_params, strict_mode=strict_mode)
                     except ValidationError as e:
-                        issues[key] = e.msg if e.issues is None else e.issues
+                        issues[prop] = e.msg if e.issues is None else e.issues
 
-            # allow_unknown
             if allow_unknown is False:
-                for key, _value in value.items():
-                    if key not in schema.keys():
-                        issues[key] = self.ERROR_UNKNOWN_FIELD
-                        # del value[key]
+                for object_key in value.keys():
+                    if object_key not in _properties.keys():
+                        issues[object_key] = self.ERROR_UNKNOWN_FIELD
 
         if len(issues.keys()):
-            raise ValidationError(self.ERROR_DICT_SCHEMA, issues=issues)
+            raise ValidationError(self.ERROR_OBJECT_PROPERTIES, issues=issues)
 
         return value
 
-    async def validate_list(self, value, *, schema: dict = None, default: str = None, nullable: bool = False,
-                            minlength: int = None, maxlength: int = None, allowed: list = None,
-                            unique_indexes: list = None, strict_mode: bool = True):
+    async def validate_array(self, value, *, items: dict = None, default: str = None, nullable: bool = False,
+                             minlength: int = None, maxlength: int = None, allowed: list = None,
+                             unique_indexes: list = None, strict_mode: bool = True):
         """
 
         Parameters
         ----------
         value : any
             Value, to be validated.
-        schema : dict or None, optional
+        items : dict, optional
             ...
-        default : str or None, optional
+        default : str, optional
             ...
         nullable : bool, optional
             ...
@@ -203,7 +215,7 @@ class Validator:
 
         # type
         if not isinstance(value, Sequence) or isinstance(value, str):
-            raise ValidationError(self.ERROR_BAD_TYPE.format("list"))
+            raise ValidationError(self.ERROR_BAD_TYPE.format("array"))
 
         # minlength
         if minlength is not None:
@@ -221,16 +233,16 @@ class Validator:
             if disallowed:
                 raise ValidationError(self.ERROR_UNALLOWED_VALUES.format(list(disallowed)))
 
-        # schema
-        if schema is not None:
+        # items
+        if items is not None:
             for i in range(0, len(value)):
                 try:
-                    value[i] = await self.validate(value[i], **schema, strict_mode=strict_mode)
+                    value[i] = await self.validate(value[i], **items, strict_mode=strict_mode)
                 except ValidationError as e:
                     issues[i] = e.msg if e.issues is None else e.issues
 
         if len(issues.keys()):
-            raise ValidationError(self.ERROR_LIST_SCHEMA, issues=issues)
+            raise ValidationError(self.ERROR_ARRAY_ITEMS, issues=issues)
 
         return value
 
@@ -246,19 +258,19 @@ class Validator:
         ----------
         value : any
             Value, to be validated.
-        default : str or None, optional
+        default : str, optional
             ...
         nullable : bool, optional
             ...
-        minlength : int or None, optional
+        minlength : int, optional
             ...
-        maxlength : int or None, optional
+        maxlength : int, optional
             ...
         empty : bool, optional
             ...
         allowed : list,  optional
             ...
-        regex : str or None, optional
+        regex : str, optional
             ...
         strict_mode : bool, optional
             Enables strict type checking.
@@ -320,15 +332,15 @@ class Validator:
         ----------
         value : any
             Value, to be validated.
-        default : int or None, optional
+        default : int, optional
             ...
         nullable : bool, optional
             ...
-        min : int or None, optional
+        min : , optional
             ...
-        max : int or None, optional
+        max : , optional
             ...
-        allowed : list or None, optional
+        allowed : list, optional
             ...
         strict_mode : bool, optional
             ...
@@ -394,15 +406,15 @@ class Validator:
         ----------
         value : any
             Value, to be validated.
-        default : float or None, optional
+        default : flo, optional
             ...
         nullable : bool, optional
             ...
-        min : float or None, optional
+        min : flo, optional
             ...
-        max : float or None, optional
+        max : flo, optional
             ...
-        allowed : list or None, optional
+        allowed : list, optional
             ...
         strict_mode : bool, optional
             ...
@@ -458,15 +470,15 @@ class Validator:
         ----------
         value : any
             Value, to be validated.
-        default : float, int or None, optional
+        default : float, in, optional
             ...
         nullable : bool, optional
             ...
-        min : float, int or None, optional
+        min : float, in, optional
             ...
-        max : float, int or None, optional
+        max : float, in, optional
             ...
-        allowed : list or None, optional
+        allowed : list, optional
             ...
         strict_mode : bool, optional
             ...
@@ -524,15 +536,15 @@ class Validator:
         ----------
         value : any
             Value, to be validated.
-        default : int or None, optional
+        default : int, optional
             ...
         nullable : bool, optional
             ...
-        min : int or None, optional
+        min : int, optional
             ...
-        max : int or None, optional
+        max : int, optional
             ...
-        allowed : list or None, optional
+        allowed : list, optional
             ...
         strict_mode : bool, optional
             ...
@@ -582,7 +594,7 @@ class Validator:
             Value, to be validated.
         format : str
             ...
-        default : str or None, optional
+        default : str, optional
             ...
         nullable : bool, optional
             ...
@@ -630,41 +642,4 @@ class Validator:
         -------
 
         """
-        return value
-
-    async def validate_objectid(self, value, *, default: str = None, nullable: bool = False, data_relation: dict,
-                                strict_mode: bool = True) -> str:
-        """
-
-        Parameters
-        ----------
-        value : any
-            Value, to be validated.
-        default : str or None, optional
-            ...
-        nullable : bool, optional
-            ...
-        data_relation : dict
-            ...
-        strict_mode : bool, optional
-            Enables strict type checking.
-
-        Returns
-        -------
-        str
-        """
-        # nullable
-        if value is None and nullable is False:
-            raise ValidationError(self.ERROR_NOT_NULLABLE)
-
-        if value is None:
-            return value
-
-        # type
-        if not isinstance(value, str):
-            raise ValidationError(self.ERROR_BAD_TYPE.format('objectid'))
-
-        # if len(value) != 36:
-        #     raise ValidationError(self.ERROR_BAD_TYPE.format('objectid'))
-
         return value
